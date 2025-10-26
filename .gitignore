@@ -70,3 +70,5 @@ secrets.json
 # Temporary files
 *.tmp
 *.temp
+
+data/outputs/
