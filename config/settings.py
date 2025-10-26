@@ -25,6 +25,8 @@ class Settings:
     llm_api_key: Optional[str]
     whisper_model: str
     llm_model: str
+    tts_model: str
+    tts_voice: str
     data_dir: Path
     log_dir: Path
 
@@ -45,6 +47,8 @@ def get_settings() -> Settings:
         llm_api_key=os.getenv("OPENAI_API_KEY"),
         whisper_model=os.getenv("WHISPER_MODEL", "whisper-1"),
         llm_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        tts_model=os.getenv("TTS_MODEL", "gpt-4o-mini-tts"),
+        tts_voice=os.getenv("TTS_VOICE", "alloy"),
         data_dir=data_dir,
         log_dir=log_dir,
     )
