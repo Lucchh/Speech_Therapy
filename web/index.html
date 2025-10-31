@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ava — Speech Therapy Coach (Realtime)</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>🗣️ Ava — Speech Therapy Coach (Realtime)</h1>
+      <p>Voice-only practice with the Realtime model. No transcripts are shown. Click <em>Connect</em> and speak.</p>
+
+      <div class="controls">
+        <textarea id="instructions" rows="6" placeholder="Optional: custom session instructions (tone, rubric, goals)..."></textarea>
+        <button id="connectBtn">Connect</button>
+        <button id="hangupBtn" disabled>Hang Up</button>
+      </div>
+
+      <section class="audio">
+        <div>
+          <h3>Assistant</h3>
+          <audio id="assistantAudio" autoplay></audio>
+        </div>
+      </section>
+
+      <section class="log">
+        <h3>Events</h3>
+        <pre id="log"></pre>
+      </section>
+    </main>
+
+    <script src="client.js"></script>
+  </body>
+</html>
