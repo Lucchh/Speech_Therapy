@@ -12,9 +12,22 @@
       <p>Voice-only practice with the Realtime model. No transcripts are shown. Click <em>Connect</em> and speak.</p>
 
       <div class="controls">
+        <label for="modeSelect">Mode</label>
+        <select id="modeSelect">
+          <option value="stutter" selected>Stutter (fluency)</option>
+          <option value="phonological">Phonological (targeted script)</option>
+        </select>
+
         <textarea id="instructions" rows="6" placeholder="Optional: custom session instructions (tone, rubric, goals)..."></textarea>
-        <button id="connectBtn">Connect</button>
-        <button id="hangupBtn" disabled>Hang Up</button>
+        <div id="targetScriptRow" style="display:none">
+          <textarea id="targetScript" rows="4" placeholder="Targeted transcript (phonological mode)"></textarea>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button id="connectBtn">Connect</button>
+          <button id="recordBtn" disabled>Record</button>
+          <button id="stopBtn" disabled>Stop</button>
+          <button id="hangupBtn" disabled>Hang Up</button>
+        </div>
       </div>
 
       <section class="audio">
@@ -25,8 +38,13 @@
       </section>
 
       <section class="log">
-        <h3>Events</h3>
+        <h3>Status</h3>
         <pre id="log"></pre>
+      </section>
+
+      <section>
+        <h3>Feedback</h3>
+        <div id="feedback" class="feedback"></div>
       </section>
     </main>
 
