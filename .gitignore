@@ -1,0 +1,9 @@
+.venv/
+.env
+pycache/
+*.pyc
+src/**/pycache/
+src/ava_speech_therapy_coach.egg-info/
+data/
+config/
+.DS_Store
