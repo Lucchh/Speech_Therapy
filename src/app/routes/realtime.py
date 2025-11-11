@@ -24,9 +24,10 @@ def create_realtime_session(body: SessionRequest) -> Dict[str, Any]:
         "model": settings.realtime_model,
         "voice": settings.realtime_voice,
         "modalities": ["audio", "text"],
-        # Do not auto-create responses; we'll trigger on Stop from the UI.
-        "turn_detection": {"type": "server_vad", "silence_duration_ms": 200, "create_response": False},
-        "input_audio_format": "pcm16",
+        # Do not auto-create responses; make VAD more permissive and allow longer pauses.
+        "turn_detection": {"type": "server_vad", "threshold": 0.25, "prefix_padding_ms": 300, "silence_duration_ms": 600, "create_response": False},
+        # Enable realtime transcription so the model can base summaries on words actually spoken
+        "input_audio_transcription": {"model": "whisper-1"},
     }
 
     mode = (body.mode or "").lower().strip()

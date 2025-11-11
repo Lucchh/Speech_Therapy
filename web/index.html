@@ -9,7 +9,7 @@
   <body>
     <main>
       <h1>🗣️ Ava — Speech Therapy Coach (Realtime)</h1>
-      <p>Voice-only practice with the Realtime model. No transcripts are shown. Click <em>Connect</em> and speak.</p>
+      <p>Practice fluency and pronunciation with quick feedback. Choose a mode, add an optional target sentence for <strong>Phonological</strong>, then <strong>Connect</strong>, <strong>Record</strong>, and <strong>Stop</strong> to hear coaching and see transcripts.</p>
 
       <div class="controls">
         <label for="modeSelect">Mode</label>
@@ -26,14 +26,20 @@
           <button id="connectBtn">Connect</button>
           <button id="recordBtn" disabled>Record</button>
           <button id="stopBtn" disabled>Stop</button>
+          <button id="replayBtn" disabled>Replay Last Take</button>
           <button id="hangupBtn" disabled>Hang Up</button>
+        </div>
+        <div class="vu-row">
+          <span class="muted">Mic level:</span>
+          <div id="vu" class="vu"><div id="vuBar" class="vu-bar"></div></div>
+          <audio id="userPlayback" controls class="user-audio" style="display:none"></audio>
         </div>
       </div>
 
       <section class="audio">
         <div>
           <h3>Assistant</h3>
-          <audio id="assistantAudio" autoplay></audio>
+          <audio id="assistantAudio" autoplay controls></audio>
         </div>
       </section>
 
@@ -51,3 +57,4 @@
     <script src="client.js"></script>
   </body>
 </html>
+
