@@ -144,12 +144,7 @@ async def analyze_audio(
         sys = instructions + "\n\n" + sys
 
     try:
-        # Chat Completions with GPT-4o Audio Preview (text + audio out)
-        content_blocks = [{"type": "text", "text": sys}]
-        # Phonology target sentence included above in sys
-        content_blocks.append({"type": "input_audio", "input_audio": {"data": b64, "format": fmt}})
-
-        # 1) Transcribe the user's recording (Whisper)
+        # 1) Transcribe the user's recording (Whisper) - needed for phonological mode
         transcript_text: Optional[str] = None
         try:
             buf = io.BytesIO(content)
@@ -159,11 +154,20 @@ async def analyze_audio(
         except Exception:
             transcript_text = None
 
-        # 2) Get assistant reply (text + audio). Strongly require a short text summary first.
+        # 2) Chat Completions with GPT-4o Audio Preview (text + audio out)
+        content_blocks = [{"type": "text", "text": sys}]
+        # Phonology target sentence included above in sys
+        content_blocks.append({"type": "input_audio", "input_audio": {"data": b64, "format": fmt}})
+
+        # 3) Get assistant reply (text + audio). Strongly require a short text summary first.
         sys += " Always include a brief 1–2 sentence text summary of your feedback before speaking."
         # Ensure target sentence is clearly provided for phonological mode
         if mode.lower() == "phonological" and target_script:
             content_blocks.append({"type": "text", "text": f"Target sentence: {target_script}"})
+        
+        # Include transcribed text in phonological mode for better comparison
+        if mode.lower() == "phonological" and transcript_text:
+            content_blocks.append({"type": "text", "text": f"User's transcribed speech: {transcript_text}"})
 
         resp = client.chat.completions.create(
             model="gpt-4o-audio-preview",
