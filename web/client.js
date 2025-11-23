@@ -9,15 +9,19 @@ const stopBtn = document.getElementById("stopBtn");
 const replayBtn = document.getElementById("replayBtn");
 const hangupBtn = document.getElementById("hangupBtn");
 const instructionsEl = document.getElementById("instructions");
-const assistantAudio = document.getElementById("assistantAudio");
-const modeSelect = document.getElementById("modeSelect");
-const targetScriptRow = document.getElementById("targetScriptRow");
-const targetScriptEl = document.getElementById("targetScript");
+// Mode and target script now come from training plan selection
+let currentTrainingPlan = null;
+let currentGroundTruthSentences = null;
 const vuBar = document.getElementById("vuBar");
 const userPlayback = document.getElementById("userPlayback");
+const statusBanner = document.getElementById("statusBanner");
+const statusText = document.getElementById("statusText");
+const recordingIndicator = document.getElementById("recordingIndicator");
+const feedbackCount = document.getElementById("feedbackCount");
 
 // Auto-target backend if UI served on a different port
 const API_BASE = (location.port === "8000" ? "" : "http://localhost:8000");
+
 
 let pc, dc, abortController;
 let toolArgsBuffer = "";
@@ -36,11 +40,46 @@ let sessionModel = "";
 let currentTakeTexts = [];
 let lastRequestInstructions = "";
 let lastTargetScript = "";
+let feedbackCounter = 0;
+
+// UI State Management
+function updateStatusBanner(status, text) {
+  if (!statusBanner || !statusText) return;
+  statusBanner.className = 'status-banner';
+  if (status) statusBanner.classList.add(status);
+  if (text) statusText.textContent = text;
+}
+
+function showRecordingIndicator(show) {
+  if (!recordingIndicator) return;
+  recordingIndicator.style.display = show ? 'flex' : 'none';
+}
+
+function hideEmptyState() {
+  const emptyState = feedbackEl.querySelector('.empty-state');
+  if (emptyState) emptyState.remove();
+}
+
+function updateFeedbackCount() {
+  feedbackCounter++;
+  if (feedbackCount) {
+    feedbackCount.textContent = feedbackCounter;
+    feedbackCount.style.display = 'inline-flex';
+  }
+}
 
 function log(msg) {
   const pretty = prettifyStatus(String(msg));
   console.log(msg);
-  if (logEl) logEl.textContent += `\n${pretty}`;
+  if (logEl) {
+    // Clear "Waiting to connect..." on first real message
+    if (logEl.textContent.trim() === 'Waiting to connect...') {
+      logEl.textContent = '';
+    }
+    logEl.textContent += (logEl.textContent ? '\n' : '') + pretty;
+    // Auto-scroll to bottom
+    logEl.scrollTop = logEl.scrollHeight;
+  }
 }
 
 function prettifyStatus(s) {
@@ -53,7 +92,10 @@ function prettifyStatus(s) {
     [/Finalizing audio… requesting feedback\./, 'Analyzing your recording…'],
     [/Received REST analysis feedback\./, 'Feedback ready'],
     [/Warning: server VAD did not detect speech in this take\./, "Didn't catch speech — try a slightly longer take"],
-    [/Connect error:/, 'Could not connect — using quick analysis instead'],
+    [/Connect error:/, 'Connection issue — using REST analysis'],
+    [/Cannot reach backend server/, 'Backend not running — check server'],
+    [/Authentication error/, 'API key issue — check configuration'],
+    [/Realtime connection failed/, 'Using REST mode instead'],
   ];
   for (const [re, nice] of map) {
     if (re.test(s)) return nice;
@@ -141,25 +183,47 @@ function renderIntake(debug) {
 }
 
 function setFeedback(objOrString, debug) {
+  hideEmptyState();
+  updateFeedbackCount();
   try {
     const data = (typeof objOrString === 'string') ? JSON.parse(objOrString) : objOrString;
     const html = (currentMode === 'phonological' || (data && data.differences))
       ? renderPhonological(data)
       : renderStutter(data);
     feedbackEl.insertAdjacentHTML('afterbegin', cardWrap(renderIntake(debug) + html));
+    
+    // Save feedback to history
+    if (window.feedbackHistory && data && (data.overall_summary || data.summary || data.content_summary)) {
+      window.feedbackHistory.saveFeedbackToHistory(data, {
+        mode: currentMode,
+        take: debug?.take || 0,
+        target_script: debug?.target_script || lastTargetScript || null,
+        intake_text: debug?.intake_text || null,
+        audio_url: debug?.audio_url || null,
+        assistant_transcript: debug?.assistant_transcript || null
+      });
+    }
+    
+    // Record session in progress system when feedback is successfully received
+    if (window.progressSystem && data && (data.overall_summary || data.summary || data.content_summary)) {
+      window.progressSystem.recordSession(currentMode, true);
+    }
   } catch {
     const text = (typeof objOrString === 'string') ? objOrString.trim() : JSON.stringify(objOrString, null, 2);
     if (text && text.length) {
       feedbackEl.insertAdjacentHTML('afterbegin', cardWrap(renderIntake(debug) + `<pre>${escapeHtml(text)}</pre>`));
+      
+      // Still record session even if feedback format is unexpected
+      if (window.progressSystem && text.length > 10) {
+        window.progressSystem.recordSession(currentMode, true);
+      }
     } else {
       feedbackEl.insertAdjacentHTML('afterbegin', cardWrap(renderIntake(debug)));
     }
   }
 }
 
-modeSelect.addEventListener("change", () => {
-  targetScriptRow.style.display = modeSelect.value === "phonological" ? "block" : "none";
-});
+// Mode is determined by training plan selection, no need for mode selector
 
 async function connect() {
   connectBtn.disabled = true;
@@ -167,14 +231,46 @@ async function connect() {
   recordBtn.disabled = true;
   stopBtn.disabled = true;
   abortController = new AbortController();
+  
   try {
+    // Get mode and ground truth from training plan
+    const progress = window.progressSystem ? window.progressSystem.getProgress() : null;
+    if (!progress || !progress.selectedPlan) {
+      log("Please select a training plan first.");
+      connectBtn.disabled = false;
+      hangupBtn.disabled = true;
+      recordBtn.disabled = true;
+      return;
+    }
+    
+    const plan = window.TRAINING_PLANS ? window.TRAINING_PLANS[progress.selectedPlan] : null;
+    if (!plan) {
+      log("Invalid training plan selected.");
+      connectBtn.disabled = false;
+      hangupBtn.disabled = true;
+      recordBtn.disabled = true;
+      return;
+    }
+    
+    currentTrainingPlan = plan;
+    currentMode = plan.therapyType === "phonological" ? "phonological" : "stutter";
+    
     const payload = {};
     if (instructionsEl.value.trim()) payload.instructions = instructionsEl.value.trim();
-    currentMode = modeSelect.value;
     payload.mode = currentMode;
-    const targetScript = (targetScriptEl?.value || "").trim();
-    if (currentMode === "phonological" && targetScript) payload.target_script = targetScript;
-    lastTargetScript = targetScript;
+    
+    // For phonological mode, use the ground truth sentences from training plan
+    // Check global variable (set by "Use All Sentences" button)
+    const groundTruth = window.currentGroundTruthSentences;
+    if (currentMode === "phonological" && groundTruth && groundTruth.length > 0) {
+      const groundTruthText = groundTruth.map(s => s.text).join(' ');
+      payload.target_script = groundTruthText;
+      lastTargetScript = groundTruthText;
+      currentGroundTruthSentences = groundTruth;
+      log(`Using ${groundTruth.length} sentences as ground truth for phonological analysis.`);
+    } else if (currentMode === "phonological") {
+      log("⚠️ No ground truth sentences set. Click 'Set as Ground Truth' button first.");
+    }
 
     const sessionResp = await fetch(`${API_BASE}/realtime/session`, {
       method: "POST",
@@ -182,22 +278,26 @@ async function connect() {
       body: JSON.stringify(payload),
       signal: abortController.signal
     });
+    
+    if (!sessionResp.ok) {
+      const errorText = await sessionResp.text();
+      throw new Error(`Backend session error (${sessionResp.status}): ${errorText}`);
+    }
+    
     const session = await sessionResp.json();
-    if (!session.client_secret?.value) throw new Error("No client_secret in session response");
+    if (!session.client_secret?.value) {
+      throw new Error("No client_secret in session response. Check your OpenAI API key and Realtime API access.");
+    }
     ephemeralKey = session.client_secret.value;
-    sessionModel = session.model || (modeSelect.value === 'phonological' ? 'gpt-4o-realtime-preview' : 'gpt-4o-realtime-preview');
-    log("Got ephemeral session.");
+    sessionModel = session.model || 'gpt-4o-realtime-preview';
 
     pc = new RTCPeerConnection();
-    pc.ontrack = (event) => {
-      const [remoteStream] = event.streams;
-      assistantAudio.srcObject = remoteStream;
-    };
+    // Audio feedback is handled in the feedback cards, not separate audio element
 
     dc = pc.createDataChannel("oai-events");
     dc.onopen = () => {
-      if (currentMode === "phonological" && targetScript) {
-        const msg = { type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: `Target sentence: ${targetScript}` }] } };
+      if (currentMode === "phonological" && lastTargetScript) {
+        const msg = { type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text: `Target sentence: ${lastTargetScript}` }] } };
         dc.send(JSON.stringify(msg));
         log("Sent target sentence to session");
       }
@@ -248,13 +348,15 @@ async function connect() {
     const answer = { type: "answer", sdp: await sdpResponse.text() };
     await pc.setRemoteDescription(answer);
     log("Connected. Click Record to start, Stop for feedback.");
+    updateStatusBanner('connected', 'Connected');
     recordBtn.disabled = false;
   } catch (err) {
-    log(`Connect error: ${err}`);
+    log(`Connect error: ${err.message || String(err)}`);
     // Allow REST analyze path without realtime
     recordBtn.disabled = false;
     hangupBtn.disabled = true;
     connectBtn.disabled = false;
+    updateStatusBanner('', 'Using REST analysis mode');
     log("Proceeding with Record/Stop using REST analyze only.");
   }
 }
@@ -262,9 +364,7 @@ async function connect() {
 async function startRecording() {
   try {
     if (!pc) return;
-    // Capture current UI selections at the moment of recording
-    currentMode = modeSelect.value;
-    lastTargetScript = (targetScriptEl?.value || "").trim();
+    // Mode and target script are already set from training plan during connect
     if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
     micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     const track = micStream.getAudioTracks()[0];
@@ -302,6 +402,8 @@ async function startRecording() {
     toolArgsBuffer = ""; textBuffer = ""; currentTakeTexts = [];
     state = 'recording'; sawSpeechThisTake = false;
     log("Recording… Speak now.");
+    updateStatusBanner('recording', 'Recording...');
+    showRecordingIndicator(true);
     recordBtn.disabled = true; stopBtn.disabled = false;
   } catch (e) { log(`Record error: ${e}`); }
 }
@@ -367,6 +469,8 @@ function stopRecording() {
     if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
 
     state = 'waiting_commit'; take += 1;
+    updateStatusBanner('connected', 'Processing...');
+    showRecordingIndicator(false);
     if (dc && dc.readyState === 'open') dc.send(JSON.stringify({ type: 'input_audio_buffer.commit' }));
     if (commitWaitTimer) clearTimeout(commitWaitTimer);
     commitWaitTimer = setTimeout(() => { if (state === 'waiting_commit') { log('Finalizing audio… requesting feedback.'); maybeRequestFeedback(); uploadRecordedForAnalysis(); } }, 900);
@@ -419,13 +523,9 @@ async function uploadRecordedForAnalysis() {
     const wavBlob = await toWavBlob(webmBlob);
     const fd = new FormData();
     fd.append('audio', wavBlob, 'take.wav');
-    // Read latest selections in case user changed mode/target after Connect
-    const latestMode = modeSelect.value;
-    const latestTarget = (targetScriptEl?.value || "").trim();
-    currentMode = latestMode;
-    lastTargetScript = latestTarget;
-    fd.append('mode', latestMode);
-    if (latestTarget) fd.append('target_script', latestTarget);
+    // Use mode and target script from training plan
+    fd.append('mode', currentMode);
+    if (lastTargetScript) fd.append('target_script', lastTargetScript);
     if (instructionsEl.value.trim()) fd.append('instructions', instructionsEl.value.trim());
     const r = await fetch(`${API_BASE}/analyze/audio`, { method: 'POST', body: fd });
     const data = await r.json();
@@ -439,10 +539,7 @@ async function uploadRecordedForAnalysis() {
         const aBlob = new Blob([arr], { type: `audio/${data.audio_format || 'mp3'}` });
         const url = URL.createObjectURL(aBlob);
         replyUrl = url;
-        if (assistantAudio) {
-          assistantAudio.src = url;
-          try { assistantAudio.play().catch(() => {}); } catch {}
-        }
+        // Audio feedback is included in the feedback card, not separate audio element
       } catch {}
     }
     if (data && typeof data.reply_transcript === 'string' && data.reply_transcript.trim().length) {

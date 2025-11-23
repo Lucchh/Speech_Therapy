@@ -1,5 +1,5 @@
 import requests
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Any, Dict, Optional
 from config.settings import get_settings
@@ -116,6 +116,31 @@ def create_realtime_session(body: SessionRequest) -> Dict[str, Any]:
         )
         payload["instructions"] = body.instructions or default_instr
 
-    resp = requests.post("https://api.openai.com/v1/realtime/sessions", headers=headers, json=payload, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    try:
+        resp = requests.post("https://api.openai.com/v1/realtime/sessions", headers=headers, json=payload, timeout=15)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 401:
+            error_detail = e.response.text if e.response else "Unknown error"
+            raise HTTPException(
+                status_code=401,
+                detail=f"OpenAI API authentication failed. Check your OPENAI_API_KEY in .env file. Error: {error_detail}"
+            )
+        elif e.response.status_code == 403:
+            error_detail = e.response.text if e.response else "Unknown error"
+            raise HTTPException(
+                status_code=403,
+                detail=f"OpenAI API access denied. You may need Realtime API access. Error: {error_detail}"
+            )
+        else:
+            error_detail = e.response.text if e.response else "Unknown error"
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"OpenAI API error: {error_detail}"
+            )
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to connect to OpenAI API: {str(e)}"
+        )

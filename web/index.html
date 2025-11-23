@@ -3,30 +3,134 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ava — Speech Therapy Coach (Realtime)</title>
+    <title>Ava - Speech Therapy Coach</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <main>
-      <h1>🗣️ Ava — Speech Therapy Coach (Realtime)</h1>
+      <h1>Ava - Speech Therapy Coach</h1>
       <p>Practice fluency and pronunciation with quick feedback. Choose a mode, add an optional target sentence for <strong>Phonological</strong>, then <strong>Connect</strong>, <strong>Record</strong>, and <strong>Stop</strong> to hear coaching and see transcripts.</p>
 
-      <div class="controls">
-        <label for="modeSelect">Mode</label>
-        <select id="modeSelect">
-          <option value="stutter" selected>Stutter (fluency)</option>
-          <option value="phonological">Phonological (targeted script)</option>
-        </select>
-
-        <textarea id="instructions" rows="6" placeholder="Optional: custom session instructions (tone, rubric, goals)..."></textarea>
-        <div id="targetScriptRow" style="display:none">
-          <textarea id="targetScript" rows="4" placeholder="Targeted transcript (phonological mode)"></textarea>
+      <!-- Progress Dashboard -->
+      <section class="progress-dashboard">
+        <div class="progress-stats">
+          <div class="stat-card">
+            <div class="stat-icon">STREAK</div>
+            <div class="stat-content">
+              <div class="stat-value" id="streakCount">0</div>
+              <div class="stat-label">Day Streak</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">XP</div>
+            <div class="stat-content">
+              <div class="stat-value" id="xpCount">0</div>
+              <div class="stat-label">Total XP</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">LVL</div>
+            <div class="stat-content">
+              <div class="stat-value" id="levelCount">1</div>
+              <div class="stat-label">Level</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">TODAY</div>
+            <div class="stat-content">
+              <div class="stat-value" id="sessionsToday">0</div>
+              <div class="stat-label">Today's Sessions</div>
+            </div>
+          </div>
         </div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        
+        <div class="progress-bar-container">
+          <div class="progress-label">
+            <span>Level Progress</span>
+            <span id="xpProgress">0 / 100 XP</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="xpProgressBar"></div>
+          </div>
+        </div>
+
+        <div class="daily-goal-container">
+          <div class="daily-goal-label">
+            <span>Daily Goal</span>
+            <span id="dailyGoalProgress">0 / 3 sessions</span>
+          </div>
+          <div class="daily-goal-bar">
+            <div class="daily-goal-fill" id="dailyGoalBar"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Training Plan Selector -->
+      <section class="training-plan-section">
+        <h3>Training Plan</h3>
+        <div class="plan-selector">
+          <label for="therapyTypeSelect">Select your speech therapy type:</label>
+          <select id="therapyTypeSelect" class="plan-select">
+            <option value="">Choose therapy type...</option>
+            <option value="stuttering">Stuttering (Fluency)</option>
+            <option value="phonological">Phonological (Articulation/Pronunciation)</option>
+          </select>
+        </div>
+        <div class="plan-selector" id="difficultySelector" style="display:none;">
+          <label for="difficultySelect">Select difficulty level:</label>
+          <select id="difficultySelect" class="plan-select">
+            <option value="">Choose difficulty...</option>
+            <option value="simple">Simple Sentences - Beginner (3 sessions/week, 10 min/day)</option>
+            <option value="compound">Compound Sentences - Intermediate (4 sessions/week, 15 min/day)</option>
+            <option value="complex">Complex Sentences - Advanced (5 sessions/week, 20 min/day)</option>
+          </select>
+        </div>
+        <div class="plan-selector" style="display:none;">
+          <select id="planSelect" class="plan-select">
+            <option value="">Choose a plan...</option>
+          </select>
+        </div>
+        <div id="planDetails" class="plan-details" style="display:none;">
+          <div class="plan-info">
+            <h4 id="planTitle"></h4>
+            <p id="planDescription"></p>
+            <div class="plan-schedule">
+              <strong>Schedule:</strong> <span id="planSchedule"></span>
+            </div>
+            <div class="plan-next-session">
+              <strong>Next Session:</strong> <span id="nextSessionDate"></span>
+            </div>
+            <div class="plan-recommendation" id="planRecommendation" style="display:none;">
+              <strong>Recommendation:</strong> <span id="planRecommendationText"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Practice Scripts Section -->
+        <div id="practiceScriptsSection" class="practice-scripts-section" style="display:none;">
+          <h4>Today's Practice Sentences</h4>
+          <p class="scripts-intro">These sentences are assigned for today's session. Read them aloud during your recording. For phonological mode, click the button below to set these as ground truth for comparison.</p>
+          <div id="dailySentences" class="daily-sentences"></div>
+          <button id="useAllSentencesBtn" class="use-all-sentences-btn">Set as Ground Truth (for Phonological Mode)</button>
+        </div>
+      </section>
+
+      <!-- Achievements Section -->
+      <section class="achievements-section" id="achievementsSection" style="display:none;">
+        <h3>Achievements</h3>
+        <div class="achievements-grid" id="achievementsGrid"></div>
+      </section>
+
+      <div class="controls">
+        <div class="form-group">
+          <label for="instructions">Custom Instructions <span class="label-optional">(Optional)</span></label>
+          <textarea id="instructions" rows="6" placeholder="Add custom session instructions, tone preferences, rubric, or goals..."></textarea>
+        </div>
+        <div class="button-group">
           <button id="connectBtn">Connect</button>
           <button id="recordBtn" disabled>Record</button>
           <button id="stopBtn" disabled>Stop</button>
-          <button id="replayBtn" disabled>Replay Last Take</button>
+          <button id="replayBtn" disabled>Replay</button>
           <button id="hangupBtn" disabled>Hang Up</button>
         </div>
         <div class="vu-row">
@@ -35,13 +139,6 @@
           <audio id="userPlayback" controls class="user-audio" style="display:none"></audio>
         </div>
       </div>
-
-      <section class="audio">
-        <div>
-          <h3>Assistant</h3>
-          <audio id="assistantAudio" autoplay controls></audio>
-        </div>
-      </section>
 
       <section class="log">
         <h3>Status</h3>
@@ -52,8 +149,39 @@
         <h3>Feedback</h3>
         <div id="feedback" class="feedback"></div>
       </section>
+
+      <!-- Progress Report Section -->
+      <section class="progress-report-section">
+        <div class="report-header">
+          <h3>Progress Report</h3>
+          <div class="report-actions">
+            <button id="exportJsonBtn" class="export-btn">Export JSON</button>
+            <button id="exportTextBtn" class="export-btn">Export Text Report</button>
+            <button id="exportPdfBtn" class="export-btn">Export PDF</button>
+          </div>
+        </div>
+        <div class="report-filters">
+          <label for="reportDateRange">Date Range:</label>
+          <select id="reportDateRange" class="report-filter">
+            <option value="all">All Time</option>
+            <option value="week">Last Week</option>
+            <option value="month">Last Month</option>
+            <option value="3months">Last 3 Months</option>
+          </select>
+          <label for="reportModeFilter">Mode:</label>
+          <select id="reportModeFilter" class="report-filter">
+            <option value="all">All Modes</option>
+            <option value="stutter">Stuttering</option>
+            <option value="phonological">Phonological</option>
+          </select>
+        </div>
+        <div id="reportSummary" class="report-summary"></div>
+        <div id="reportHistory" class="report-history"></div>
+      </section>
     </main>
 
+    <script src="progress.js"></script>
+    <script src="feedbackHistory.js"></script>
     <script src="client.js"></script>
   </body>
 </html>
