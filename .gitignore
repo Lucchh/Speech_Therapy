@@ -19,6 +19,9 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+pycache/
+src/**/pycache/
+src/ava_speech_therapy_coach.egg-info/
 
 # Virtual environments
 .env
@@ -62,6 +65,8 @@ data/logs/*
 #data/users/*
 !data/logs/.gitkeep
 !data/users/.gitkeep
+data/outputs/
+data/
 
 # API keys and secrets
 .env.local
@@ -71,4 +76,5 @@ secrets.json
 *.tmp
 *.temp
 
-data/outputs/
+# Config (if contains sensitive data)
+config/
